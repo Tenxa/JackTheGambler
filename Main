@@ -1,0 +1,516 @@
+import mysql.connector
+import random as rand
+
+db = mysql.connector.connect(host="localhost", user="dbuser", passwd="dbpass",
+                             db="jackthegambler", buffered=True)
+
+i = 0
+
+cur = db.cursor()
+sql = "update inventory set money = 1000 where inventoryid = 1"
+cur.execute(sql)
+db.commit()
+
+
+def dice():
+    noppa1 = rand.randint(1,6)
+    noppa2 = rand.randint(1,6)
+    a = 1
+    b = 2
+    sumDice = 0
+    money = getMoney()
+    ok = False
+    cur = db.cursor()
+
+    print("Welcome to dice game!\n")
+    print("Instructions for dice game:")
+    print("After placing your bet, two dices will be thrown and their numbers",
+          "will be added and divided by two after. If the remainder of the sum",
+          "is an even number (0), you win your bet amount multiplied by 1.5.",
+          "If you lose, your bet will be reducted from your total money.\n")
+
+    while ok != True:
+        try:
+            bet = int(input("Place your bet: "))
+            if bet <= getMoney() and bet <= 500:
+                ok = True
+            elif bet > 500:
+                print("You can't bet more than 500 €!")
+            else:
+                print("You can't bet more than what you own!")
+        except:
+            print("Give a proper bet!")
+        
+    sql = "update dice set dicenumber = %s where diceid = %s"
+    cur.execute(sql, (noppa1, a))
+    sql = "update dice set dicenumber = %s where diceid = %s"
+    cur.execute(sql, (noppa2, b))
+    sql = "select dicenumber from dice"
+    cur.execute(sql)
+    res = cur.fetchall()
+
+    sql = "select sum(dicenumber) from dice"
+    cur.execute(sql)
+    res = cur.fetchall()
+    win = bet * 1.5
+    
+    for row in res:
+        sumDice = row[0]
+        
+    if sumDice % 2 == 0:
+        print("You won, sum of dices was " + str(sumDice) + "\n")
+        sql = "update inventory set money = %s where inventoryid = %s"
+        cur.execute(sql, (money - bet + win, 1))
+        db.commit()
+    else:
+        print("You lost, sum of dices was " + str(sumDice) + "\n")
+        sql = "update inventory set money = %s where inventoryid = %s"
+        cur.execute(sql, ((money - bet), 1))
+        db.commit()
+
+
+def blackjack():
+    numbers = []
+    numbersDel = []
+    numberPlayer = []
+    numberDealer = []
+    dealerFirst = 0
+    playerHand = 0
+    dealerHand = 0
+    numberP = 0
+    numberD = 0
+    ok = False
+    cur = db.cursor()
+    money = getMoney()
+
+    print("Welcome to blackjack!\n")
+    print("Instructions for blackjack:")
+    print("Note: the dealer's first card is shown as a number (i.e. a queen is shown as a 12)",
+          "but the value is still ten like all other face cards.")          
+    print(" - DEALING: You begin by placing your wager on the betting circle in frontof you.",
+          "After this the dealer gives you and all the other players including him or herself two cards each.")
+    print(" - BLACKJACK. If your first two cards add up to 21, you have a blackjack. If the dealer does not have a blackjack,",
+          "you win automatically. If the dealer also has a blackjack, it is a push and your bet is returned.")
+    print(" - HIT. If you do not have a blackjack, you can hit, that is, ask for a card to add to your hand. You can keep",
+          "hitting until you get a score of 21 or higher or until you do not want to hit any further.")
+    print(" - STAND. Whenever you are happy with your hand, you can stay with it or stand.")
+    print(" - DEALER. After the player's hand has been addressed, it is the dealer's turn to act. The dealer will",
+          "keep hitting for more cards until they get a score of 16 or more.\n")
+
+    while ok != True:
+        try:
+            bet = int(input("Place your bet: "))
+            if bet <= getMoney() and bet <= 800:
+                ok = True
+            elif bet > 800:
+                print("You can't bet more than 800 €!")
+            else:
+                print("You can't bet more than what you own!")
+        except:
+            print("Place a proper bet!")
+
+    for i in range(1, 15):
+        for j in range(0, 4):
+            numbers.append(i)
+
+    for i in range(2):
+        numberP = rand.choice(numbers)
+
+        if numberP > 10:
+            playerHand += 10
+            numbers.remove(numberP)
+            numbersDel.append(numberP)
+            if numberP == 11:
+                numberPlayer.append("J")
+            elif numberP == 12:
+                numberPlayer.append("Q")
+            elif numberP == 13:
+                numberPlayer.append("K")
+            elif (numberP == 14) or numberP == 1:
+                numberPlayer.append("A")
+        else:
+            playerHand += numberP
+            numbers.remove(numberP)
+            numbersDel.append(numberP)
+            numberPlayer.append(str(numberP))
+
+    if numbersDel[0] >= 10 and (numbersDel[1] == 14 or numbersDel[1] == 1):
+        playerHand == 21
+    elif numbersDel[1] >= 10 and (numbersDel[0] == 14 or numbersDel[0] == 1):
+        playerHand == 21
+
+    for i in range(2):
+        numberD = rand.choice(numbers)
+
+        if numberD > 10:
+            dealerHand += 10
+            numbers.remove(numberD)
+            numbersDel.append(numberD)
+            if numberD == 11:
+                numberDealer.append("J")
+            elif numberD == 12:
+                numberDealer.append("Q")
+            elif numberD == 13:
+                numberDealer.append("K")
+            elif (numberD == 1) or numberD == 14:
+                numberDealer.append("A")
+        else:
+            dealerHand += numberD
+            numbers.remove(numberD)
+            numbersDel.append(numberD)
+            numberDealer.append(str(numberD))
+
+    if numbersDel[2] >= 10 and (numbersDel[3] == 14 or numbersDel[3] == 1):
+        dealerHand == 21
+    elif (numbersDel[2] == 14 or numbersDel[2] == 1) and numbersDel[3] >= 10:
+        dealerHand == 21
+
+    dealerFirst= numbersDel[2]
+
+    del numberDealer[0]
+
+    while (playerHand < 21 and dealerHand < 21):
+        answer = input("Type 'h' to HIT, press any other key to STAND. Your current hand is " + str(numberPlayer) +
+                       ". Dealer's current hand is " + str(numberDealer) + ". ")
+        if answer == "h":
+            numberP = rand.choice(numbers)
+            if numberP == 14 or numberP == 1:
+                numberP == 14
+                playerHand += 10
+                numbers.remove(numberP)
+                numbersDel.append(numberP)
+                numberPlayer.append("A")
+            elif numberP > 10:
+                playerHand += 10
+                numbers.remove(numberP)
+                numbersDel.append(numberP)
+                if numberP == 11:
+                    numberPlayer.append("J")
+                elif numberP == 12:
+                    numberPlayer.append("Q")
+                elif numberP == 13:
+                    numberPlayer.append("K")
+            else:
+                playerHand += numberP
+                numbers.remove(numberP)
+                numbersDel.append(numberP)
+                numberPlayer.append(str(numberP))
+        else:
+            break
+
+        if playerHand > 21 and numberP == 14:
+            playerHand -= 9
+        elif playerHand > 21 and numberPlayer[-1 - 1] == 14:
+            playerHand -= 9
+
+    if playerHand > 21 and (numberP == 14 or numberP == 1):
+        playerHand -= 9
+
+    while (dealerHand < 16 and playerHand < 21):
+        numberD = rand.choice(numbers)
+        if (numberD == 14) or numberD == 1:
+            numberD == 14
+            dealerHand += 10
+            numbers.remove(numberD)
+            numbersDel.append(numberD)
+            numberDealer.append("A")
+        elif numberD > 10:
+            dealerHand += 10
+            numbers.remove(numberD)
+            numbersDel.append(numberD)
+            if numberD == 11:
+                numberDealer.append("J")
+            elif numberD == 12:
+                numberDealer.append("Q")
+            elif numberD == 13:
+                numberDealer.append("K")
+        else:
+            dealerHand += numberD
+            numbers.remove(numberD)
+            numbersDel.append(numberD)
+            numberDealer.append(str(numberD))
+
+    if dealerHand > 21 and (numberD == 14 or numberD == 1):
+        dealerHand -= 9
+
+    win = bet * 2
+
+    if (playerHand >= dealerHand and playerHand <= 21):
+        print("You won! Your hand was " + str(numberPlayer) + ", dealer's hand was ['" + str(dealerFirst) + "'] " + str(numberDealer) + ".\n")
+        sql = "update inventory set money = %s where inventoryid = %s"
+        cur.execute(sql, (money - bet + win, 1))
+    elif (playerHand < dealerHand and dealerHand <= 21):
+        print("You lost! Dealer's hand was ['" + str(dealerFirst)+ "'] " + str(numberDealer) + ", yours was " + str(numberPlayer) + ".\n")
+        sql = "update inventory set money = %s where inventoryid = %s"
+        cur.execute(sql, (money - bet, 1))
+    elif (playerHand > 21):
+        print("You lost, your hand was over 21 (" + str(numberPlayer) + "). Dealer's hand was " + "['" + str(dealerFirst) + "'] " + str(numberDealer) + "\n")
+        sql = "update inventory set money = %s where inventoryid = %s"
+        cur.execute(sql, (money - bet, 1))
+    elif (dealerHand > 21):
+        print("You won, dealer's hand was over 21 (['" + str(dealerFirst)+ "'] " + str(numberDealer) + "). Your hand was " + str(numberPlayer) + "\n")
+        sql = "update inventory set money = %s where inventoryid = %s"
+        cur.execute(sql, (money - bet + win, 1))
+
+    del numberDealer[:]
+    del numberPlayer[:]
+    for luku in numbersDel:
+        numbers.append(luku)
+    del numbersDel[:]
+
+
+def roulette():
+    wheelnum = []
+    num = 0
+    betnum = 0
+    money = getMoney()
+    ok = False
+    okBet = False
+    cur = db.cursor()
+
+    print("\nWelcome to roulette!\n")
+    
+    while ok != True:
+        try:
+            bet = int(input("Place your bet: "))
+            if bet <= getMoney():
+                ok = True
+            else:
+                print("You can't bet more than what you own!")
+        except:
+            print("Place a proper bet!")
+    
+    for i in range(1,37):
+        wheelnum.append(i)
+
+    num = rand.choice(wheelnum)
+    while okBet != True:
+        try:
+            betnum = int(input("Choose a number from 1-6, 7-12, 13-18, 19-24, 25-30, 31-36 please: "))
+            okBet = True
+        except:
+            print("Number must be an integer between 1 and 36!")
+    print("If your number belongs to the same group as the number the ball lands on, you win.")    
+    print("The ball stopped to number:", num)
+
+    win = bet * 10
+    
+    if 1 <= num <= 6 and 1 <= betnum <=6:
+        print("you won from numbers 1-6\n")
+        sql = "update inventory set money = %s where inventoryid = %s"
+        cur.execute(sql, (money - bet + win, 1))
+    elif num > 6 and betnum < 6:
+        print("you lost!\n")    
+        sql = "update inventory set money = %s where inventoryid = %s"
+        cur.execute(sql, (money - bet, 1))
+    elif 7 <= num <= 12 and 7 <= betnum <= 12:
+        print("you won from numbers 7-12\n")
+        sql = "update inventory set money = %s where inventoryid = %s"
+        cur.execute(sql, (money - bet + win, 1))
+    elif num < 7 or num > 12 and 7 <= betnum <= 12:
+        print("you lost!\n")
+        sql = "update inventory set money = %s where inventoryid = %s"
+        cur.execute(sql, (money - bet, 1))
+    elif 13 <= num <= 18 and 13 <= betnum <= 18:
+        print("you won from numbers 13-18\n")
+        sql = "update inventory set money = %s where inventoryid = %s"
+        cur.execute(sql, (money - bet + win, 1))
+    elif num < 13 or num > 18 and 13 <= betnum <= 18:
+        print("you lost!\n")
+        sql = "update inventory set money = %s where inventoryid = %s"
+        cur.execute(sql, (money - bet, 1))
+    elif 19 <= num <= 24 and 19 <= betnum <= 24:
+        print("you won from numbers 19-24\n")
+        sql = "update inventory set money = %s where inventoryid = %s"
+        cur.execute(sql, (money - bet + win, 1))
+    elif num < 19 or num > 24 and 19 <= betnum <= 24:
+        print("you lost!\n")
+        sql = "update inventory set money = %s where inventoryid = %s"
+        cur.execute(sql, (money - bet, 1))
+    elif 25 <= num <= 30 and 25 <= betnum <= 30:
+        print("you won from number 25-30\n")
+        sql = "update inventory set money = %s where inventoryid = %s"
+        cur.execute(sql, (money - bet + win, 1))
+    elif num < 25 or num > 30 and 25 <= betnum <= 30:
+        print("you lost!\n")
+        sql = "update inventory set money = %s where inventoryid = %s"
+        cur.execute(sql, (money - bet, 1))
+    elif 31 <= num <= 36 and 31 <= betnum <= 36:
+        print ("you won from numbers 31-36\n")
+        sql = "update inventory set money = %s where inventoryid = %s"
+        cur.execute(sql, (money - bet + win, 1))
+    elif 31 <= num <= 36 and (betnum < 31 or betnum > 36):
+        print("you lost!\n")
+        sql = "update inventory set money = %s where inventoryid = %s"
+        cur.execute(sql, (money - bet, 1))        
+    elif num < 31 or num > 36 and 31 <= betnum <= 36:
+        print("you lost!\n")
+        sql = "update inventory set money = %s where inventoryid = %s"
+        cur.execute(sql, (money - bet, 1))
+
+
+def russianRoulette():
+    money = getMoney()
+    ok = True
+    if money < 100:
+        print("\nYou don't have enough money to play this game.\n")
+    else:
+        print("\nWelcome to Russian Roulette!\nEnter a positive integer each round or 0 to quit.")
+        TurnID = 1
+        players_bet = 0
+        houses_bet = 0
+        total = None
+        cur = db.cursor()
+        
+        def endGame():
+            print("\n\n-------- The end --------")
+            print("Your total bet: ", players_bet)
+            print("Casino\'s total bet: ", houses_bet)
+            print("Better stay alive")
+            print("Money on the table: ", total)
+            half = total/2
+            print("You take half of it: ", half)
+            if players_bet < houses_bet:
+                print("And you\'ve managed to win ", half-players_bet)
+            else:
+                print("Unfortunately, you lost ", players_bet-half)
+            sql = "update inventory set money = %s where inventoryid = %s"
+            cur.execute(sql, (money + half, 1))
+
+        def winGame():
+            print("\n\n-------- The end --------")
+            print("Your total bet: ", players_bet)
+            print("Casino\'s total bet: ", houses_bet)
+            print("Better stay alive")
+            print("Money on the table: ", total)
+            print("And you take all of it!")
+            print("You\'ve won ", total-players_bet)
+            sql = "update inventory set money = %s where inventoryid = %s"
+            cur.execute(sql, (money + total, 1))
+
+        def death():
+            print("\n\n-------- The end --------")
+            print("Your total bet: ", players_bet)
+            print("Casino\'s total bet: ", houses_bet)
+            print("Game over, you\'re dead!")
+            print("Casino takes ", total, " along with your ", players_bet)
+            sql = "update inventory set money = 0 where inventoryid = 1"
+            cur.execute(sql)
+
+        while TurnID < 6 and ok == True:
+            players_bet += 100*TurnID
+            houses_bet += 100**(TurnID-1)
+            total = players_bet+houses_bet
+            print("\nRound", TurnID, "\nYour bet: ", 100*TurnID)
+            print("Casino\'s bet: ", 100**(TurnID-1), "\nTotal: ", total)
+            userInput = ""
+            try: 
+                userInput = int(input("Choose your lucky draw: "))
+                randPC = rand.randint(1, 6)
+                random = (userInput * randPC) % 5
+                if userInput <= 0:
+                    endGame()
+                    ok = False
+                elif TurnID == random:
+                    death()
+                    ok = False
+                TurnID += 1
+            except:
+                print("\nYou didn't enter an integer!")
+
+        if ok == False:
+            pass
+        else:
+            winGame()
+
+
+def showHelp():
+    print("\nAll the commands you can use while in the lobby are listed below.")
+    print("Each time a game is selected, instructions on how to play will be shown in case you need them.")
+    print("Once the game has ended you will be returned to the lobby screen, regardless of whether you won or not.")
+    print(" - help: opens this help menu.")
+    print(" - exit: quit the game.")
+    print(" - money: shows the amount of money you currently possess.")
+    print(" - bj: enters the blackjack room and starts a game of blackjack.")
+    print(" - dice: enters the dices room starts a game of dices.")
+    print(" - rol: enters the roulette room and starts a game of roulette.")
+    print(" - rr: starts a game of russian roulette.")
+    
+
+def getMoney():
+    cur = db.cursor()
+    sql = "select money from inventory where inventoryid = 1"
+    cur.execute(sql)
+    res = cur.fetchall()
+    for row in res:
+        money = row[0]
+    return money
+
+
+def printMoney():
+    cur = db.cursor()
+    sql = "select money from inventory where inventoryid = 1"
+    cur.execute(sql)
+    res = cur.fetchall()
+    for row in res:
+        money = row[0]
+    print("You currently have " + str(money) + " €.\n")
+    return
+    
+
+def story():
+    print("Jack has a serious problem. He has borrowed 10 000 euros for", 
+    "gambling from the bad guys. The debt must be paid after 24 hours or",
+    "tomorrow he has less fingers. Jack does not find any other way to",
+    "make the money than play more. He has 1000 euros in cash and he goes",
+    "to the Casino.\nYou are now in the casino lobby.\n")
+
+    
+while True:
+    while i < 1:
+        story()
+        i += 1
+    money = 0
+    cur = db.cursor()
+    sql = "select money from inventory"
+    cur.execute(sql)
+    res = cur.fetchall()
+    for row in res:
+        money = row[0]
+
+    if money <= 0:
+        print("You lost all your money. Now you lose your fingers.\n")
+        input("Press ENTER to exit")
+        break;
+    elif money >= 10000:
+        print("Congratulations! You have won enough money to pay your debts. You won't lose your fingers.\n")
+        input("Press ENTER to exit")
+        break;
+
+    print("Type 'help' on this lobby screen if you wish to view the available commands. Type 'exit' to quit the game.\n")
+    userinput = input("What do you want to do? ")
+
+    if userinput == "help":
+        showHelp()
+    elif userinput == "money":
+        printMoney()
+    elif userinput == "bj":
+        print("\n")
+        blackjack()
+    elif userinput == "dice":
+        print("\n")
+        dice()
+    elif userinput == "rol":
+        roulette()
+    elif userinput == "rr":
+        russianRoulette()
+    elif userinput == "exit":
+        print("Exiting the casino.")
+        if money < 10000 and money > 0:
+            print("You didn't make enough money to pay your debts. Now you lose your fingers.\n")
+        input("Press ENTER to exit")
+        break;
+    else:
+        print("Couldn't understand that command.\n")
+
+db.close()
